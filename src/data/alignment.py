@@ -231,6 +231,7 @@ class AlignmentLoader:
         """
         # Try various naming conventions
         patterns = [
+            f"{session_id}/{session_id}_{utterance_id}_audio.TextGrid",  # Actual format in dataset
             f"{session_id}/{utterance_id}.TextGrid",
             f"{session_id}_{utterance_id}.TextGrid",
             f"{utterance_id}.TextGrid",
