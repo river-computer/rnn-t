@@ -404,6 +404,30 @@ class GaddyEncoder(nn.Module):
 
         return x, output_lengths
 
+    @classmethod
+    def from_pretrained(cls, checkpoint_path: str, device: str = 'cpu') -> 'GaddyEncoder':
+        """Load pretrained weights from Gaddy checkpoint.
+
+        Args:
+            checkpoint_path: path to model.pt
+            device: device to load to
+
+        Returns:
+            GaddyEncoder with loaded weights
+        """
+        state_dict = torch.load(checkpoint_path, map_location=device)
+
+        # Infer vocab size from w_out
+        vocab_size = state_dict['w_out.weight'].shape[0]
+
+        # Create model
+        model = cls(vocab_size=vocab_size)
+
+        # Load weights
+        model.load_state_dict(state_dict, strict=True)
+
+        return model
+
 
 class GaddyEncoderForRNNT(nn.Module):
     """Wrapper around GaddyEncoder for RNN-T training.
@@ -471,27 +495,3 @@ class GaddyEncoderForRNNT(nn.Module):
     def get_output_length(self, input_length: int) -> int:
         """Calculate output length (8x downsample)."""
         return input_length // self.downsample_factor
-
-    @classmethod
-    def from_pretrained(cls, checkpoint_path: str, device: str = 'cpu') -> 'GaddyEncoder':
-        """Load pretrained weights from Gaddy checkpoint.
-
-        Args:
-            checkpoint_path: path to model.pt
-            device: device to load to
-
-        Returns:
-            GaddyEncoder with loaded weights
-        """
-        state_dict = torch.load(checkpoint_path, map_location=device)
-
-        # Infer vocab size from w_out
-        vocab_size = state_dict['w_out.weight'].shape[0]
-
-        # Create model
-        model = cls(vocab_size=vocab_size)
-
-        # Load weights
-        model.load_state_dict(state_dict, strict=True)
-
-        return model
