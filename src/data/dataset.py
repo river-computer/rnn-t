@@ -259,4 +259,8 @@ def collate_fn(batch: list[dict]) -> dict:
         "sequences": sequences_padded,
         "sequence_lengths": sequence_lengths,
         "session_indices": session_indices,
+        # Aliases for training code compatibility
+        "session_id": session_indices,
+        "target_lengths": sequence_lengths,
+        "targets": sequences_padded,  # RNN-T uses 'targets'
     }
