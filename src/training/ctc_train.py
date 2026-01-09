@@ -31,9 +31,16 @@ from ..utils import CTCLoss, MetricTracker, S3Checkpoint
 class CTCHead(nn.Module):
     """CTC output head for encoder pretraining."""
 
-    def __init__(self, input_dim: int, vocab_size: int):
+    def __init__(self, input_dim: int, vocab_size: int, blank_id: int = 0):
         super().__init__()
         self.proj = nn.Linear(input_dim, vocab_size)
+        self.blank_id = blank_id
+
+        # Initialize bias to discourage blank predictions initially
+        # This helps prevent blank collapse at the start of training
+        with torch.no_grad():
+            self.proj.bias.zero_()
+            self.proj.bias[blank_id] = -5.0  # Strong negative bias for blank
 
     def forward(self, x):
         return self.proj(x)
@@ -62,10 +69,11 @@ class CTCTrainer:
         # CTC output head
         vocab_size = config['data']['vocab_size']
         encoder_output_dim = config['model']['encoder']['output_dim']
-        self.ctc_head = CTCHead(encoder_output_dim, vocab_size).to(device)
+        blank_id = config.get('blank_id', 0)
+        self.ctc_head = CTCHead(encoder_output_dim, vocab_size, blank_id=blank_id).to(device)
 
         # Loss
-        self.criterion = CTCLoss(blank_id=config.get('blank_id', 0))
+        self.criterion = CTCLoss(blank_id=blank_id)
 
         # Optimizer
         train_config = config['training']['ctc']
