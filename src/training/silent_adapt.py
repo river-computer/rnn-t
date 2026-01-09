@@ -503,6 +503,11 @@ def train_silent(
     # Build model
     model = build_transducer(config)
 
+    # Build paths
+    data_dir = Path(config['data']['local_data_dir'])
+    alignments_dir = data_dir / 'text_alignments'
+    vocab_path = Path('data/vocab.json')
+
     # Build preprocessor
     preprocessor = EMGPreprocessor(
         sample_rate=config['data']['emg_sample_rate'],
@@ -516,23 +521,25 @@ def train_silent(
 
     # Build datasets
     train_dataset = SilentVocalizedPairDataset(
-        data_dir=config['data']['local_data_dir'],
-        alignments_dir=config['data']['alignments_dir'],
+        data_dir=str(data_dir),
+        alignments_dir=str(alignments_dir),
         preprocessor=preprocessor,
         split='train',
     )
     val_dataset = SilentVocalizedPairDataset(
-        data_dir=config['data']['local_data_dir'],
-        alignments_dir=config['data']['alignments_dir'],
+        data_dir=str(data_dir),
+        alignments_dir=str(alignments_dir),
         preprocessor=preprocessor,
         split='val',
     )
 
     # Voiced dataset for labels
     voiced_dataset = EMGDataset(
-        data_dir=config['data']['local_data_dir'],
-        split='train',
-        data_type='voiced',
+        data_dir=str(data_dir),
+        alignments_dir=str(alignments_dir),
+        vocab_path=str(vocab_path),
+        sessions=config['data']['train_sessions'],
+        split='voiced',
     )
 
     train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)

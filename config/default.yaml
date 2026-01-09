@@ -9,6 +9,7 @@ data:
 
   # EMG preprocessing
   sample_rate: 1000  # Raw EMG sample rate
+  emg_sample_rate: 1000  # Alias for compatibility
   target_sample_rate: 689  # Gaddy's downsampled rate
   frame_length_ms: 8  # 8ms frames
   frame_shift_ms: 4   # 50% overlap
@@ -23,6 +24,9 @@ data:
   train_sessions: ["5-4", "5-5", "5-6", "5-8", "5-9"]
   val_sessions: ["5-10"]
   test_sessions: ["5-11"]
+
+  # Vocab size (4 special + 39 phonemes)
+  vocab_size: 43
 
 # Vocabulary
 vocab:
@@ -71,23 +75,55 @@ model:
     input_dim: 128
     vocab_size: 43
 
-# Training - Stage 1: CTC
+# Training configuration (nested structure for code compatibility)
+training:
+  # Stage 1: CTC
+  ctc:
+    epochs: 50
+    batch_size: 16
+    learning_rate: 1.0e-4
+    weight_decay: 0.01
+    max_grad_norm: 5.0
+    use_amp: true
+    lr_factor: 0.5
+    lr_patience: 5
+    min_lr: 1.0e-6
+    target_per: 0.35  # Target PER before moving to RNN-T
+
+  # Stage 2: RNN-T
+  rnnt:
+    epochs: 100
+    batch_size: 8
+    gradient_accumulation: 4
+    learning_rate: 5.0e-5
+    weight_decay: 0.01
+    max_grad_norm: 1.0
+    use_k2_pruned: true
+    pruning_simple_loss_scale: 0.5
+    warmup_steps: 2000
+    min_lr: 1.0e-6
+    gradient_checkpointing: true
+    mixed_precision: true
+
+  # Stage 3: Silent Adaptation
+  silent:
+    epochs: 25
+    batch_size: 8
+    learning_rate: 1.0e-5  # Lower LR for fine-tuning
+    weight_decay: 0.01
+    max_grad_norm: 1.0
+    freeze_encoder_epochs: 5  # Freeze encoder for first N epochs
+    dtw_feature_dim: 128
+
+# Top-level training configs (for train_all.py compatibility)
 ctc_training:
   epochs: 50
   batch_size: 16
   learning_rate: 1.0e-4
   weight_decay: 0.01
   max_grad_norm: 5.0
+  target_per: 0.35
 
-  scheduler:
-    type: "reduce_on_plateau"
-    factor: 0.5
-    patience: 5
-    min_lr: 1.0e-6
-
-  target_per: 0.35  # Target PER before moving to RNN-T
-
-# Training - Stage 2: RNN-T
 rnnt_training:
   epochs: 100
   batch_size: 8
@@ -95,30 +131,20 @@ rnnt_training:
   learning_rate: 5.0e-5
   weight_decay: 0.01
   max_grad_norm: 1.0
-
-  # Loss
   use_k2_pruned: true
   pruning_simple_loss_scale: 0.5
-
-  scheduler:
-    type: "cosine"
-    warmup_steps: 2000
-    min_lr: 1.0e-6
-
-  # Memory optimization
+  warmup_steps: 2000
+  min_lr: 1.0e-6
   gradient_checkpointing: true
   mixed_precision: true
 
-# Training - Stage 3: Silent Adaptation
 silent_training:
   epochs: 25
   batch_size: 8
-  learning_rate: 1.0e-5  # Lower LR for fine-tuning
+  learning_rate: 1.0e-5
   weight_decay: 0.01
   max_grad_norm: 1.0
-
-  # DTW
-  freeze_encoder_epochs: 5  # Freeze encoder for first N epochs
+  freeze_encoder_epochs: 5
   dtw_feature_dim: 128
 
 # Streaming Inference

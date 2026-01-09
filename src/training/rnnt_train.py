@@ -360,16 +360,25 @@ def train_rnnt(
     # Build model
     model = build_transducer(config)
 
+    # Build paths
+    data_dir = Path(config['data']['local_data_dir'])
+    alignments_dir = data_dir / 'text_alignments'
+    vocab_path = Path('data/vocab.json')
+
     # Build datasets
     train_dataset = EMGDataset(
-        data_dir=config['data']['local_data_dir'],
-        split='train',
-        data_type='voiced',
+        data_dir=str(data_dir),
+        alignments_dir=str(alignments_dir),
+        vocab_path=str(vocab_path),
+        sessions=config['data']['train_sessions'],
+        split='voiced',
     )
     val_dataset = EMGDataset(
-        data_dir=config['data']['local_data_dir'],
-        split='val',
-        data_type='voiced',
+        data_dir=str(data_dir),
+        alignments_dir=str(alignments_dir),
+        vocab_path=str(vocab_path),
+        sessions=config['data']['val_sessions'],
+        split='voiced',
     )
 
     train_loader = DataLoader(
