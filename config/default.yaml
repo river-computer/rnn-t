@@ -1,5 +1,11 @@
 # EMG RNN-T Configuration
 
+# Special token IDs (top-level for easy access)
+blank_id: 0
+sil_id: 1
+sos_id: 2
+eos_id: 3
+
 # Data
 data:
   s3_bucket: "river-emg-speech"
