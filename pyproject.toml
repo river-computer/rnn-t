@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "emg-rnnt"
+version = "0.1.0"
+description = "Streaming RNN-T for EMG Silent Speech"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+
+dependencies = [
+    "torch>=2.0",
+    "torchaudio>=2.0",
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "praatio>=6.0",
+    "librosa>=0.10",
+    "tslearn>=0.6",
+    "wandb>=0.15",
+    "editdistance>=0.6",
+    "boto3>=1.28",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+k2 = ["k2>=1.24"]
+dev = ["pytest>=7.0", "black>=23.0", "ruff>=0.1"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]

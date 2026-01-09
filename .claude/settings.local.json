@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tar:*)",
+      "Bash(xargs:*)",
+      "Bash(shuf:*)",
+      "Bash(aws s3 cp:*)",
+      "Bash(curl:*)",
+      "Bash(aws s3:*)"
+    ]
+  }
+}

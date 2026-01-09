@@ -1,0 +1,138 @@
+# EMG RNN-T Configuration
+
+# Data
+data:
+  s3_bucket: "river-emg-speech"
+  emg_path: "data/emg_data.tar.gz"
+  alignments_path: "data/text_alignments.tar.gz"
+  local_data_dir: "./data"
+
+  # EMG preprocessing
+  sample_rate: 1000  # Raw EMG sample rate
+  target_sample_rate: 689  # Gaddy's downsampled rate
+  frame_length_ms: 8  # 8ms frames
+  frame_shift_ms: 4   # 50% overlap
+  num_channels: 8
+
+  # Filtering
+  notch_freq: 60  # Power line interference
+  bandpass_low: 20
+  bandpass_high: 450
+
+  # Sessions for train/val/test split
+  train_sessions: ["5-4", "5-5", "5-6", "5-8", "5-9"]
+  val_sessions: ["5-10"]
+  test_sessions: ["5-11"]
+
+# Vocabulary
+vocab:
+  blank_id: 0
+  sil_id: 1
+  sos_id: 2
+  eos_id: 3
+  phonemes: [
+    "AA", "AE", "AH", "AO", "AW", "AY", "B", "CH", "D", "DH",
+    "EH", "ER", "EY", "F", "G", "HH", "IH", "IY", "JH", "K",
+    "L", "M", "N", "NG", "OW", "OY", "P", "R", "S", "SH",
+    "T", "TH", "UH", "UW", "V", "W", "Y", "Z", "ZH"
+  ]
+  # Total vocab size: 4 special + 39 phonemes = 43
+
+# Model
+model:
+  # Encoder
+  encoder:
+    num_sessions: 8
+    session_embed_dim: 32
+    input_dim: 40  # 8 EMG + 32 session embed
+    conv_channels: 768
+    num_conv_blocks: 3
+    subsample_factor: 4  # 4x downsampling
+
+    # Transformer
+    num_layers: 6
+    d_model: 768
+    num_heads: 8
+    ff_dim: 2048
+    dropout: 0.1
+
+    output_dim: 128
+
+  # Predictor
+  predictor:
+    vocab_size: 43
+    embed_dim: 128
+    hidden_dim: 320
+    num_layers: 1
+    output_dim: 128
+
+  # Joiner
+  joiner:
+    input_dim: 128
+    vocab_size: 43
+
+# Training - Stage 1: CTC
+ctc_training:
+  epochs: 50
+  batch_size: 16
+  learning_rate: 1.0e-4
+  weight_decay: 0.01
+  max_grad_norm: 5.0
+
+  scheduler:
+    type: "reduce_on_plateau"
+    factor: 0.5
+    patience: 5
+    min_lr: 1.0e-6
+
+  target_per: 0.35  # Target PER before moving to RNN-T
+
+# Training - Stage 2: RNN-T
+rnnt_training:
+  epochs: 100
+  batch_size: 8
+  gradient_accumulation: 4
+  learning_rate: 5.0e-5
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+
+  # Loss
+  use_k2_pruned: true
+  pruning_simple_loss_scale: 0.5
+
+  scheduler:
+    type: "cosine"
+    warmup_steps: 2000
+    min_lr: 1.0e-6
+
+  # Memory optimization
+  gradient_checkpointing: true
+  mixed_precision: true
+
+# Training - Stage 3: Silent Adaptation
+silent_training:
+  epochs: 25
+  batch_size: 8
+  learning_rate: 1.0e-5  # Lower LR for fine-tuning
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+
+  # DTW
+  freeze_encoder_epochs: 5  # Freeze encoder for first N epochs
+  dtw_feature_dim: 128
+
+# Streaming Inference
+streaming:
+  chunk_size_ms: 160
+  chunk_frames: 20  # 160ms / 8ms per frame
+
+# Checkpointing
+checkpoint:
+  s3_prefix: "checkpoints"
+  save_every_epochs: 1
+  keep_last_n: 3
+
+# Logging
+logging:
+  wandb_project: "emg-rnnt"
+  log_every_steps: 100
