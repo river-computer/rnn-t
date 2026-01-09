@@ -1,5 +1,5 @@
 from .losses import CTCLoss, RNNTLoss
-from .metrics import compute_per, compute_wer
+from .metrics import compute_per, compute_wer, MetricTracker
 from .s3 import S3Checkpoint, upload_checkpoint, download_checkpoint, checkpoint_exists, list_checkpoints
 
 __all__ = [
@@ -7,6 +7,7 @@ __all__ = [
     "RNNTLoss",
     "compute_per",
     "compute_wer",
+    "MetricTracker",
     "S3Checkpoint",
     "upload_checkpoint",
     "download_checkpoint",
