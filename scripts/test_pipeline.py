@@ -396,7 +396,6 @@ def test_training_step(config):
     """Test a single training step with gradient update."""
     print("\n=== Test 7: Training Step ===")
 
-    from src.model import build_transducer
     from src.utils import CTCLoss
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -447,9 +446,6 @@ def test_streaming_inference(config):
     """Test streaming inference."""
     print("\n=== Test 8: Streaming Inference ===")
 
-    from src.model import build_transducer
-    from src.data import EMGPreprocessor
-
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     try:
@@ -487,8 +483,6 @@ def test_s3_checkpoint(config):
 
     try:
         # Test local save/load first
-        from src.model import build_transducer
-
         model = build_transducer(config)
 
         # Save to temp file
