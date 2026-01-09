@@ -68,7 +68,14 @@ class CTCLoss(nn.Module):
         # CTC expects 1D target tensor with all sequences concatenated
         targets_flat = targets[targets != -1]  # Remove padding if any
 
-        return self.ctc(log_probs, targets, input_lengths, target_lengths)
+        ctc_loss = self.ctc(log_probs, targets, input_lengths, target_lengths)
+
+        # Add blank penalty to discourage blank collapse
+        # Penalize high probability of blank token
+        blank_probs = log_probs[:, :, self.blank_id].exp()  # (time, batch)
+        blank_penalty = blank_probs.mean() * 2.0  # Scale factor
+
+        return ctc_loss + blank_penalty
 
 
 class RNNTLoss(nn.Module):
