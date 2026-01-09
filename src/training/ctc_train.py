@@ -37,14 +37,13 @@ class CTCHead(nn.Module):
         self.proj = nn.Linear(input_dim, vocab_size)
         self.blank_id = blank_id
 
-        # Initialize with small weights and bias toward blank
-        # This prevents mode collapse to a single non-blank token
+        # Initialize with small weights
         nn.init.xavier_uniform_(self.proj.weight, gain=0.1)
         nn.init.zeros_(self.proj.bias)
-        # Bias blank token to encourage blank predictions initially
-        # CTC should output ~80% blanks, so start with blank being more likely
+        # Start with slight penalty on blank to encourage non-blank predictions
+        # This gives better gradients early in training
         with torch.no_grad():
-            self.proj.bias[blank_id] = 2.0  # log-odds favoring blank
+            self.proj.bias[blank_id] = -1.0  # Slight penalty on blank
 
     def forward(self, x):
         return self.proj(x)
