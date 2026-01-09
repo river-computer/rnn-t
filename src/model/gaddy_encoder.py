@@ -498,8 +498,10 @@ class GaddyEncoderForRNNT(nn.Module):
             output: (batch, time // 4, output_dim) if upsample_2x else (batch, time // 8, output_dim)
             output_lengths: (batch,)
         """
+        batch_size = emg.shape[0]
+
         # Get encoder output (768-dim)
-        encoder_out, output_lengths = self.encoder.get_encoder_output(emg, lengths)
+        encoder_out, _ = self.encoder.get_encoder_output(emg, lengths)
 
         # Project to joiner dimension
         output = self.output_proj(encoder_out)
@@ -510,8 +512,21 @@ class GaddyEncoderForRNNT(nn.Module):
             output = output.transpose(1, 2)
             output = self.upsample(output)
             output = output.transpose(1, 2)
-            # Double the output lengths
-            output_lengths = output_lengths * 2
+
+        # Use ACTUAL tensor length, not computed length (avoids off-by-one from conv padding)
+        actual_length = output.shape[1]
+
+        # Compute per-sample lengths based on ratio of input lengths
+        if lengths is not None:
+            # Scale each sample's length by the same ratio as the max
+            max_input_len = emg.shape[1]
+            output_lengths = (lengths.float() * actual_length / max_input_len).long()
+            # Ensure no length exceeds actual
+            output_lengths = output_lengths.clamp(max=actual_length)
+        else:
+            output_lengths = torch.full(
+                (batch_size,), actual_length, device=emg.device, dtype=torch.long
+            )
 
         return output, output_lengths
 
