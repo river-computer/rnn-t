@@ -210,11 +210,50 @@ def test_preprocessing(config):
         return False
 
 
+def build_transducer(config):
+    """Build transducer model from config."""
+    from src.model import EMGEncoder, Predictor, Joiner, Transducer
+
+    encoder_config = config['model']['encoder']
+    predictor_config = config['model']['predictor']
+    joiner_config = config['model']['joiner']
+
+    encoder = EMGEncoder(
+        emg_channels=config['data'].get('num_channels', 8),
+        num_sessions=encoder_config.get('num_sessions', 8),
+        session_embed_dim=encoder_config.get('session_embed_dim', 32),
+        conv_channels=encoder_config.get('conv_channels', 768),
+        num_conv_blocks=encoder_config.get('num_conv_blocks', 3),
+        d_model=encoder_config.get('d_model', 768),
+        num_heads=encoder_config.get('num_heads', 8),
+        ff_dim=encoder_config.get('ff_dim', 2048),
+        num_layers=encoder_config.get('num_layers', 6),
+        dropout=encoder_config.get('dropout', 0.1),
+        output_dim=encoder_config.get('output_dim', 128),
+    )
+
+    predictor = Predictor(
+        vocab_size=predictor_config.get('vocab_size', 43),
+        embed_dim=predictor_config.get('embed_dim', 128),
+        hidden_dim=predictor_config.get('hidden_dim', 320),
+        num_layers=predictor_config.get('num_layers', 1),
+        output_dim=predictor_config.get('output_dim', 128),
+    )
+
+    joiner = Joiner(
+        encoder_dim=joiner_config.get('input_dim', 128),
+        predictor_dim=joiner_config.get('input_dim', 128),
+        vocab_size=joiner_config.get('vocab_size', 43),
+    )
+
+    return Transducer(encoder, predictor, joiner, blank_id=0)
+
+
 def test_model_forward(config):
     """Test model forward passes."""
     print("\n=== Test 4: Model Forward ===")
 
-    from src.model import EMGEncoder, Predictor, Joiner, build_transducer
+    from src.model import EMGEncoder, Predictor, Joiner
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"  Using device: {device}")
@@ -223,18 +262,25 @@ def test_model_forward(config):
         # Test encoder
         encoder_config = config['model']['encoder']
         encoder = EMGEncoder(
-            emg_channels=encoder_config.get('emg_channels', 8),
+            emg_channels=config['data'].get('num_channels', 8),
             num_sessions=encoder_config.get('num_sessions', 8),
+            session_embed_dim=encoder_config.get('session_embed_dim', 32),
+            conv_channels=encoder_config.get('conv_channels', 768),
+            num_conv_blocks=encoder_config.get('num_conv_blocks', 3),
             d_model=encoder_config.get('d_model', 768),
+            num_heads=encoder_config.get('num_heads', 8),
+            ff_dim=encoder_config.get('ff_dim', 2048),
             num_layers=encoder_config.get('num_layers', 6),
+            dropout=encoder_config.get('dropout', 0.1),
             output_dim=encoder_config.get('output_dim', 128),
         ).to(device)
 
         batch_size, seq_len = 2, 100
         emg = torch.randn(batch_size, seq_len, 8, device=device)
         session_id = torch.zeros(batch_size, dtype=torch.long, device=device)
+        lengths = torch.full((batch_size,), seq_len, device=device)
 
-        encoder_out, lengths = encoder(emg, session_id)
+        encoder_out, out_lengths = encoder(emg, session_id, lengths)
         print(f"  ✓ Encoder: {emg.shape} -> {encoder_out.shape}")
 
         # Test predictor
@@ -243,6 +289,7 @@ def test_model_forward(config):
             vocab_size=predictor_config.get('vocab_size', 43),
             embed_dim=predictor_config.get('embed_dim', 128),
             hidden_dim=predictor_config.get('hidden_dim', 320),
+            num_layers=predictor_config.get('num_layers', 1),
             output_dim=predictor_config.get('output_dim', 128),
         ).to(device)
 
@@ -252,7 +299,8 @@ def test_model_forward(config):
 
         # Test joiner
         joiner = Joiner(
-            input_dim=config['model']['joiner'].get('input_dim', 128),
+            encoder_dim=config['model']['joiner'].get('input_dim', 128),
+            predictor_dim=config['model']['joiner'].get('input_dim', 128),
             vocab_size=config['model']['joiner'].get('vocab_size', 43),
         ).to(device)
 
