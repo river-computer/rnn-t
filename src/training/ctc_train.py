@@ -34,13 +34,6 @@ class CTCHead(nn.Module):
     def __init__(self, input_dim: int, vocab_size: int, blank_id: int = 0):
         super().__init__()
         self.proj = nn.Linear(input_dim, vocab_size)
-        self.blank_id = blank_id
-
-        # Initialize bias to discourage blank predictions initially
-        # This helps prevent blank collapse at the start of training
-        with torch.no_grad():
-            self.proj.bias.zero_()
-            self.proj.bias[blank_id] = -5.0  # Strong negative bias for blank
 
     def forward(self, x):
         return self.proj(x)
@@ -159,7 +152,7 @@ class CTCTrainer:
             if self.use_amp:
                 self.scaler.scale(loss).backward()
                 self.scaler.unscale_(self.optimizer)
-                nn.utils.clip_grad_norm_(
+                grad_norm = nn.utils.clip_grad_norm_(
                     list(self.encoder.parameters()) + list(self.ctc_head.parameters()),
                     self.max_grad_norm,
                 )
@@ -167,7 +160,7 @@ class CTCTrainer:
                 self.scaler.update()
             else:
                 loss.backward()
-                nn.utils.clip_grad_norm_(
+                grad_norm = nn.utils.clip_grad_norm_(
                     list(self.encoder.parameters()) + list(self.ctc_head.parameters()),
                     self.max_grad_norm,
                 )
@@ -175,6 +168,10 @@ class CTCTrainer:
 
             total_loss += loss.item()
             num_batches += 1
+
+            # Log gradient info periodically
+            if num_batches == 1:
+                print(f"  [Batch 1] loss={loss.item():.4f}, grad_norm={grad_norm:.4f}")
 
         return {
             'train_loss': total_loss / num_batches,

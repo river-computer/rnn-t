@@ -70,18 +70,8 @@ class CTCLoss(nn.Module):
 
         ctc_loss = self.ctc(log_probs, targets, input_lengths, target_lengths)
 
-        # Blank penalty to prevent blank collapse
-        blank_probs = log_probs[:, :, self.blank_id].exp()  # (time, batch)
-        blank_penalty = blank_probs.mean() * 5.0
-
-        # Diversity penalty: penalize low entropy (mode collapse to single token)
-        # Max entropy for 43 classes = log(43) ≈ 3.76
-        probs = log_probs.exp()  # (time, batch, vocab)
-        entropy = -(probs * log_probs).sum(dim=-1).mean()  # Average entropy
-        max_entropy = 3.76  # log(43)
-        diversity_penalty = (max_entropy - entropy) * 2.0  # Penalize low entropy
-
-        return ctc_loss + blank_penalty + diversity_penalty
+        # Just return CTC loss - let's see if vanilla CTC can learn
+        return ctc_loss
 
 
 class RNNTLoss(nn.Module):
