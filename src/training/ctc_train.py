@@ -90,6 +90,16 @@ class CTCTrainer:
         # Gradient clipping
         self.max_grad_norm = train_config.get('max_grad_norm', 5.0)
 
+        # Gradient checkpointing for memory efficiency
+        if train_config.get('gradient_checkpointing', False):
+            if hasattr(self.encoder, 'gradient_checkpointing_enable'):
+                self.encoder.gradient_checkpointing_enable()
+            else:
+                # Enable checkpointing on transformer layers manually
+                for module in self.encoder.modules():
+                    if hasattr(module, 'gradient_checkpointing'):
+                        module.gradient_checkpointing = True
+
         # Checkpointing
         s3_config = config.get('s3', {})
         self.checkpoint_manager = S3Checkpoint(

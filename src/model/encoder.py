@@ -15,6 +15,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
+from torch.utils.checkpoint import checkpoint
 
 
 class ConvBlock(nn.Module):
@@ -327,6 +328,7 @@ class EMGEncoder(nn.Module):
         self.num_layers = num_layers
         self.d_model = d_model
         self.output_dim = output_dim
+        self.gradient_checkpointing = False  # Enable for memory efficiency
 
         # Session embedding
         self.session_embedding = nn.Embedding(num_sessions, session_embed_dim)
@@ -353,6 +355,14 @@ class EMGEncoder(nn.Module):
 
         # Output projection
         self.output_proj = nn.Linear(d_model, output_dim)
+
+    def gradient_checkpointing_enable(self):
+        """Enable gradient checkpointing for memory efficiency."""
+        self.gradient_checkpointing = True
+
+    def gradient_checkpointing_disable(self):
+        """Disable gradient checkpointing."""
+        self.gradient_checkpointing = False
 
     def forward(
         self,
@@ -395,7 +405,16 @@ class EMGEncoder(nn.Module):
 
         # Transformer layers
         for layer in self.transformer_layers:
-            x, _ = layer(x, kv_cache=None, use_cache=False)
+            if self.gradient_checkpointing and self.training:
+                # Use gradient checkpointing for memory efficiency
+                def create_custom_forward(module):
+                    def custom_forward(hidden_states):
+                        out, _ = module(hidden_states, kv_cache=None, use_cache=False)
+                        return out
+                    return custom_forward
+                x = checkpoint(create_custom_forward(layer), x, use_reentrant=False)
+            else:
+                x, _ = layer(x, kv_cache=None, use_cache=False)
 
         # Output projection
         output = self.output_proj(x)
