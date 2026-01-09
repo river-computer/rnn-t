@@ -518,11 +518,12 @@ class GaddyEncoderForRNNT(nn.Module):
 
         # Compute per-sample lengths based on ratio of input lengths
         if lengths is not None:
-            # Scale each sample's length by the same ratio as the max
-            max_input_len = emg.shape[1]
+            # Use actual max length from batch, not padded tensor shape
+            max_input_len = lengths.max().float()
+            # Scale proportionally, ensuring max sample gets actual_length
             output_lengths = (lengths.float() * actual_length / max_input_len).long()
-            # Ensure no length exceeds actual
-            output_lengths = output_lengths.clamp(max=actual_length)
+            # Clamp to valid range
+            output_lengths = output_lengths.clamp(min=1, max=actual_length)
         else:
             output_lengths = torch.full(
                 (batch_size,), actual_length, device=emg.device, dtype=torch.long
