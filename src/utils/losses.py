@@ -229,13 +229,6 @@ class RNNTLoss(nn.Module):
                 f"target_lengths: {target_lengths[violations].tolist()}"
             )
 
-        # Debug print shapes
-        print(f"DEBUG RNNT Loss shapes:")
-        print(f"  log_probs: {log_probs.shape} (B, T, U, V)")
-        print(f"  targets: {targets.shape}")
-        print(f"  input_lengths: {input_lengths.tolist()}")
-        print(f"  target_lengths: {target_lengths.tolist()}")
-
         return self.torchaudio_loss(
             log_probs,
             targets.int(),
