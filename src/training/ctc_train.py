@@ -254,6 +254,13 @@ class CTCTrainer:
                           f"unique_tokens={unique_tokens[:10]}")
                     if encoder_lengths[b] < target_lengths[b]:
                         print(f"    WARNING: encoder_len < target_len! CTC will fail.")
+                    # Show raw probability distribution at a few frames
+                    probs = log_probs[b].exp()  # Convert to probs
+                    frame_mid = encoder_lengths[b] // 2
+                    print(f"    Raw probs at frame {frame_mid.item()}:")
+                    print(f"      blank (0): {probs[frame_mid, 0].item():.4f}")
+                    print(f"      top 5 non-blank: {probs[frame_mid, 1:].topk(5).values.tolist()}")
+                    print(f"      top 5 indices: {(probs[frame_mid, 1:].topk(5).indices + 1).tolist()}")
                     print(f"    Pred (decoded): {predictions[b][:20]}")
                     print(f"    Ref:            {references[b][:20]}")
 
