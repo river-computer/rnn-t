@@ -70,12 +70,17 @@ class CTCLoss(nn.Module):
 
         ctc_loss = self.ctc(log_probs, targets, input_lengths, target_lengths)
 
-        # Add blank penalty to discourage blank collapse
-        # Penalize high probability of blank token
+        # Strong blank penalty to prevent collapse
         blank_probs = log_probs[:, :, self.blank_id].exp()  # (time, batch)
-        blank_penalty = blank_probs.mean() * 2.0  # Scale factor
+        blank_penalty = blank_probs.mean() * 10.0  # Much stronger penalty
 
-        return ctc_loss + blank_penalty
+        # Entropy bonus: encourage diverse predictions (not just one token)
+        # Higher entropy = more diverse = good
+        probs = log_probs.exp()  # (time, batch, vocab)
+        entropy = -(probs * log_probs).sum(dim=-1).mean()  # Average entropy
+        entropy_bonus = -entropy * 0.5  # Negative because we want to maximize entropy
+
+        return ctc_loss + blank_penalty + entropy_bonus
 
 
 class RNNTLoss(nn.Module):
