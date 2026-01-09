@@ -201,6 +201,34 @@ class RNNTLoss(nn.Module):
         # torchaudio expects log_softmax applied
         log_probs = logits.log_softmax(dim=-1)
 
+        # Debug: Check for length constraint violations
+        B, T, U, V = log_probs.shape
+        max_input_len = input_lengths.max().item()
+        max_target_len = target_lengths.max().item()
+
+        if max_input_len > T:
+            raise ValueError(
+                f"input_lengths max ({max_input_len}) > logits T dim ({T}). "
+                f"Logits shape: {log_probs.shape}, input_lengths: {input_lengths.tolist()}"
+            )
+
+        if max_target_len > U - 1:
+            raise ValueError(
+                f"target_lengths max ({max_target_len}) > logits U-1 dim ({U-1}). "
+                f"Logits shape: {log_probs.shape}, target_lengths: {target_lengths.tolist()}"
+            )
+
+        # Check for RNN-T constraint: encoder_length >= target_length for each sample
+        violations = input_lengths < target_lengths
+        if violations.any():
+            bad_idx = violations.nonzero().squeeze(-1).tolist()
+            raise ValueError(
+                f"RNN-T constraint violated: encoder_length < target_length. "
+                f"Bad samples: {bad_idx}, "
+                f"input_lengths: {input_lengths[violations].tolist()}, "
+                f"target_lengths: {target_lengths[violations].tolist()}"
+            )
+
         return self.torchaudio_loss(
             log_probs,
             targets.int(),
