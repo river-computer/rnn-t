@@ -60,7 +60,7 @@ def check_prerequisites(config: dict) -> bool:
         errors.append("voiced_parallel_data directory not found")
 
     # Check alignments
-    alignments_dir = data_dir / 'alignments'
+    alignments_dir = data_dir / 'text_alignments'
     if alignments_dir.exists():
         alignment_files = list(alignments_dir.glob('**/*.TextGrid'))
         print(f"  ✓ Found {len(alignment_files)} alignment files")
