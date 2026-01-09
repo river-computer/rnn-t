@@ -88,9 +88,10 @@ training:
     epochs: 50
     batch_size: 4  # Increased for 24GB GPU
     gradient_accumulation: 2  # Effective batch size = 8
-    learning_rate: 5.0e-4  # Moderate LR
+    learning_rate: 3.0e-4  # Lower LR for stability
     weight_decay: 0.01
-    max_grad_norm: 10.0  # Allow larger gradients
+    max_grad_norm: 5.0  # Tighter gradient clipping
+    warmup_steps: 500  # Critical: warmup to prevent mode collapse
     use_amp: false
     gradient_checkpointing: true  # Save memory
     lr_factor: 0.5
@@ -129,9 +130,10 @@ ctc_training:
   epochs: 50
   batch_size: 4
   gradient_accumulation: 2
-  learning_rate: 5.0e-4  # Moderate LR
+  learning_rate: 3.0e-4  # Lower LR for stability
   weight_decay: 0.01
-  max_grad_norm: 10.0  # Allow larger gradients
+  max_grad_norm: 5.0  # Tighter gradient clipping
+  warmup_steps: 500  # Critical: warmup to prevent mode collapse
   use_amp: false
   gradient_checkpointing: true
   target_per: 0.35

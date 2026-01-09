@@ -13,8 +13,9 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.optim import AdamW
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.lr_scheduler import ReduceLROnPlateau, LambdaLR
 from torch.cuda.amp import GradScaler, autocast
+import math
 import yaml
 
 try:
@@ -34,6 +35,16 @@ class CTCHead(nn.Module):
     def __init__(self, input_dim: int, vocab_size: int, blank_id: int = 0):
         super().__init__()
         self.proj = nn.Linear(input_dim, vocab_size)
+        self.blank_id = blank_id
+
+        # Initialize with small weights and bias toward blank
+        # This prevents mode collapse to a single non-blank token
+        nn.init.xavier_uniform_(self.proj.weight, gain=0.1)
+        nn.init.zeros_(self.proj.bias)
+        # Bias blank token to encourage blank predictions initially
+        # CTC should output ~80% blanks, so start with blank being more likely
+        with torch.no_grad():
+            self.proj.bias[blank_id] = 2.0  # log-odds favoring blank
 
     def forward(self, x):
         return self.proj(x)
@@ -76,13 +87,20 @@ class CTCTrainer:
             weight_decay=train_config['weight_decay'],
         )
 
-        # Scheduler
-        self.scheduler = ReduceLROnPlateau(
+        # Warmup + ReduceLROnPlateau scheduler
+        self.warmup_steps = train_config.get('warmup_steps', 500)
+        self.current_step = 0
+        self.base_lr = train_config['learning_rate']
+
+        # Plateau scheduler for after warmup
+        self.plateau_scheduler = ReduceLROnPlateau(
             self.optimizer,
             mode='min',
             factor=train_config['lr_factor'],
             patience=train_config['lr_patience'],
         )
+
+        # Warmup will be applied manually in train_epoch
 
         # Mixed precision
         self.use_amp = train_config.get('use_amp', True)
@@ -132,6 +150,14 @@ class CTCTrainer:
         num_batches = 0
 
         for batch in dataloader:
+            # Apply warmup LR
+            if self.current_step < self.warmup_steps:
+                warmup_factor = (self.current_step + 1) / self.warmup_steps
+                lr = self.base_lr * warmup_factor
+                for param_group in self.optimizer.param_groups:
+                    param_group['lr'] = lr
+            self.current_step += 1
+
             # Move to device
             emg = batch['emg'].to(self.device)
             session_id = batch['session_id'].to(self.device)
@@ -171,7 +197,8 @@ class CTCTrainer:
 
             # Log gradient info periodically
             if num_batches == 1:
-                print(f"  [Batch 1] loss={loss.item():.4f}, grad_norm={grad_norm:.4f}")
+                current_lr = self.optimizer.param_groups[0]['lr']
+                print(f"  [Batch 1] loss={loss.item():.4f}, grad_norm={grad_norm:.4f}, lr={current_lr:.2e}")
 
         return {
             'train_loss': total_loss / num_batches,
@@ -279,7 +306,8 @@ class CTCTrainer:
             'encoder_state_dict': self.encoder.state_dict(),
             'ctc_head_state_dict': self.ctc_head.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
-            'scheduler_state_dict': self.scheduler.state_dict(),
+            'scheduler_state_dict': self.plateau_scheduler.state_dict(),
+            'current_step': self.current_step,
             'metrics': metrics,
             'config': self.config,
         }
@@ -309,7 +337,8 @@ class CTCTrainer:
         self.encoder.load_state_dict(checkpoint['encoder_state_dict'])
         self.ctc_head.load_state_dict(checkpoint['ctc_head_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        self.plateau_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        self.current_step = checkpoint.get('current_step', 0)
 
         return checkpoint['epoch']
 
@@ -344,8 +373,9 @@ class CTCTrainer:
             # Validate
             val_metrics = self.validate(val_loader)
 
-            # Update scheduler
-            self.scheduler.step(val_metrics['val_loss'])
+            # Update scheduler (only after warmup)
+            if self.current_step >= self.warmup_steps:
+                self.plateau_scheduler.step(val_metrics['val_loss'])
 
             # Check if best
             is_best = val_metrics['per'] < self.best_val_per
