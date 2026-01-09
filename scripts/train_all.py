@@ -124,7 +124,7 @@ def run_stage_1_ctc(config: dict, dry_run: bool = False) -> str:
 
     from src.training import train_ctc
 
-    epochs = config['training']['ctc']['epochs']
+    epochs = config['ctc_training']['epochs']
     print(f"  Training for {epochs} epochs...")
 
     checkpoint_path = train_ctc(config, epochs=epochs)
@@ -145,7 +145,7 @@ def run_stage_2_rnnt(config: dict, ctc_checkpoint: str, dry_run: bool = False) -
 
     from src.training import train_rnnt
 
-    epochs = config['training']['rnnt']['epochs']
+    epochs = config['rnnt_training']['epochs']
     print(f"  Training for {epochs} epochs...")
     print(f"  Encoder initialized from: {ctc_checkpoint}")
 
@@ -167,7 +167,7 @@ def run_stage_3_silent(config: dict, rnnt_checkpoint: str, dry_run: bool = False
 
     from src.training import train_silent
 
-    epochs = config['training']['silent']['epochs']
+    epochs = config['silent_training']['epochs']
     print(f"  Training for {epochs} epochs...")
     print(f"  Model initialized from: {rnnt_checkpoint}")
 
