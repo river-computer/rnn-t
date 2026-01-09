@@ -343,13 +343,15 @@ class RNNTTrainer:
 def train_rnnt(
     config: Dict[str, Any],
     encoder_init: Optional[str] = None,
+    gaddy_checkpoint: Optional[str] = None,
     epochs: int = 100,
 ) -> str:
     """Train RNN-T model and return checkpoint path.
 
     Args:
         config: Training configuration
-        encoder_init: Path to CTC checkpoint for encoder initialization
+        encoder_init: Path to CTC checkpoint for encoder initialization (ignored if gaddy_checkpoint set)
+        gaddy_checkpoint: Path to Gaddy pretrained encoder checkpoint (skips CTC training)
         epochs: Number of epochs
 
     Returns:
@@ -357,8 +359,8 @@ def train_rnnt(
     """
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    # Build model
-    model = build_transducer(config)
+    # Build model (with optional Gaddy encoder)
+    model = build_transducer(config, gaddy_checkpoint=gaddy_checkpoint)
 
     # Build paths
     data_dir = Path(config['data']['local_data_dir'])
@@ -398,7 +400,9 @@ def train_rnnt(
 
     # Train
     trainer = RNNTTrainer(model, config, device)
-    trainer.train(train_loader, val_loader, epochs, encoder_init=encoder_init)
+    # Skip encoder_init if using Gaddy's pretrained encoder
+    init = None if gaddy_checkpoint else encoder_init
+    trainer.train(train_loader, val_loader, epochs, encoder_init=init)
 
     # Return best checkpoint path
     s3_config = config.get('s3', {})
@@ -413,6 +417,8 @@ def main():
                         help='Path to config file')
     parser.add_argument('--encoder-init', type=str, default=None,
                         help='Path to CTC checkpoint for encoder initialization')
+    parser.add_argument('--gaddy-checkpoint', type=str, default=None,
+                        help='Path to Gaddy pretrained encoder (skips CTC, uses pretrained)')
     parser.add_argument('--epochs', type=int, default=100,
                         help='Number of training epochs')
     parser.add_argument('--wandb', action='store_true',
@@ -428,7 +434,12 @@ def main():
         wandb.init(project='emg-rnnt', name='rnnt-train', config=config)
 
     # Train
-    checkpoint_path = train_rnnt(config, encoder_init=args.encoder_init, epochs=args.epochs)
+    checkpoint_path = train_rnnt(
+        config,
+        encoder_init=args.encoder_init,
+        gaddy_checkpoint=args.gaddy_checkpoint,
+        epochs=args.epochs,
+    )
     print(f"Training complete. Best checkpoint: {checkpoint_path}")
 
 

@@ -404,6 +404,74 @@ class GaddyEncoder(nn.Module):
 
         return x, output_lengths
 
+
+class GaddyEncoderForRNNT(nn.Module):
+    """Wrapper around GaddyEncoder for RNN-T training.
+
+    Adds a projection layer to match joiner dimensions and freezes
+    pretrained weights optionally.
+    """
+
+    def __init__(
+        self,
+        pretrained_path: str,
+        output_dim: int = 128,
+        freeze_encoder: bool = False,
+        device: str = 'cpu',
+    ):
+        """Initialize wrapper.
+
+        Args:
+            pretrained_path: Path to Gaddy checkpoint
+            output_dim: Output dimension for joiner (default 128)
+            freeze_encoder: Whether to freeze pretrained weights
+            device: Device to load to
+        """
+        super().__init__()
+
+        # Load pretrained encoder
+        self.encoder = GaddyEncoder.from_pretrained(pretrained_path, device)
+        self.d_model = self.encoder.d_model  # 768
+        self.output_dim = output_dim
+        self.downsample_factor = self.encoder.downsample_factor  # 8
+
+        # Projection to joiner dimension
+        self.output_proj = nn.Linear(self.d_model, output_dim)
+
+        # Optionally freeze encoder
+        if freeze_encoder:
+            for param in self.encoder.parameters():
+                param.requires_grad = False
+
+    def forward(
+        self,
+        emg: Tensor,
+        session_id: Tensor,  # Ignored - Gaddy doesn't use session embedding
+        lengths: Optional[Tensor] = None,
+    ) -> Tuple[Tensor, Tensor]:
+        """Forward pass compatible with EMGEncoder interface.
+
+        Args:
+            emg: (batch, time, emg_channels) - raw EMG
+            session_id: (batch,) - ignored (Gaddy doesn't use session)
+            lengths: (batch,) - sequence lengths
+
+        Returns:
+            output: (batch, time // 8, output_dim)
+            output_lengths: (batch,)
+        """
+        # Get encoder output (768-dim)
+        encoder_out, output_lengths = self.encoder.get_encoder_output(emg, lengths)
+
+        # Project to joiner dimension
+        output = self.output_proj(encoder_out)
+
+        return output, output_lengths
+
+    def get_output_length(self, input_length: int) -> int:
+        """Calculate output length (8x downsample)."""
+        return input_length // self.downsample_factor
+
     @classmethod
     def from_pretrained(cls, checkpoint_path: str, device: str = 'cpu') -> 'GaddyEncoder':
         """Load pretrained weights from Gaddy checkpoint.
