@@ -22,15 +22,17 @@ def build_transducer(config: dict, gaddy_checkpoint: str = None) -> Transducer:
 
     if gaddy_checkpoint:
         # Use pretrained Gaddy encoder
+        upsample = encoder_config.get('upsample_2x', True)  # Default: upsample to match 4x
         encoder = GaddyEncoderForRNNT(
             pretrained_path=gaddy_checkpoint,
             output_dim=encoder_config.get('output_dim', 128),
             freeze_encoder=encoder_config.get('freeze_pretrained', False),
+            upsample_2x=upsample,
         )
         print(f"Using pretrained Gaddy encoder from: {gaddy_checkpoint}")
         print(f"  - Encoder frozen: {encoder_config.get('freeze_pretrained', False)}")
         print(f"  - Output dim: {encoder_config.get('output_dim', 128)}")
-        print(f"  - Downsample: 8x (Gaddy architecture)")
+        print(f"  - Downsample: {'4x (upsampled from 8x)' if upsample else '8x (native)'}")
     else:
         # Use standard EMGEncoder
         encoder = EMGEncoder(

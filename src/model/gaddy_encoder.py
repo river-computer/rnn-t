@@ -432,8 +432,8 @@ class GaddyEncoder(nn.Module):
 class GaddyEncoderForRNNT(nn.Module):
     """Wrapper around GaddyEncoder for RNN-T training.
 
-    Adds a projection layer to match joiner dimensions and freezes
-    pretrained weights optionally.
+    Adds a projection layer to match joiner dimensions and optionally
+    upsamples 2x to convert 8x downsampling to 4x (matching original encoder).
     """
 
     def __init__(
@@ -441,6 +441,7 @@ class GaddyEncoderForRNNT(nn.Module):
         pretrained_path: str,
         output_dim: int = 128,
         freeze_encoder: bool = False,
+        upsample_2x: bool = True,  # Upsample to match 4x downsampling
         device: str = 'cpu',
     ):
         """Initialize wrapper.
@@ -449,6 +450,7 @@ class GaddyEncoderForRNNT(nn.Module):
             pretrained_path: Path to Gaddy checkpoint
             output_dim: Output dimension for joiner (default 128)
             freeze_encoder: Whether to freeze pretrained weights
+            upsample_2x: If True, upsample 2x to convert 8x->4x downsampling
             device: Device to load to
         """
         super().__init__()
@@ -457,10 +459,22 @@ class GaddyEncoderForRNNT(nn.Module):
         self.encoder = GaddyEncoder.from_pretrained(pretrained_path, device)
         self.d_model = self.encoder.d_model  # 768
         self.output_dim = output_dim
-        self.downsample_factor = self.encoder.downsample_factor  # 8
+        self.upsample_2x = upsample_2x
+
+        # Effective downsample factor
+        self.downsample_factor = 4 if upsample_2x else 8
 
         # Projection to joiner dimension
         self.output_proj = nn.Linear(self.d_model, output_dim)
+
+        # Upsample layer (transposed conv to double sequence length)
+        if upsample_2x:
+            self.upsample = nn.ConvTranspose1d(
+                output_dim, output_dim,
+                kernel_size=4, stride=2, padding=1
+            )
+        else:
+            self.upsample = None
 
         # Optionally freeze encoder
         if freeze_encoder:
@@ -481,7 +495,7 @@ class GaddyEncoderForRNNT(nn.Module):
             lengths: (batch,) - sequence lengths
 
         Returns:
-            output: (batch, time // 8, output_dim)
+            output: (batch, time // 4, output_dim) if upsample_2x else (batch, time // 8, output_dim)
             output_lengths: (batch,)
         """
         # Get encoder output (768-dim)
@@ -490,8 +504,17 @@ class GaddyEncoderForRNNT(nn.Module):
         # Project to joiner dimension
         output = self.output_proj(encoder_out)
 
+        # Upsample 2x if enabled (8x -> 4x effective downsampling)
+        if self.upsample is not None:
+            # (batch, time, dim) -> (batch, dim, time) for conv
+            output = output.transpose(1, 2)
+            output = self.upsample(output)
+            output = output.transpose(1, 2)
+            # Double the output lengths
+            output_lengths = output_lengths * 2
+
         return output, output_lengths
 
     def get_output_length(self, input_length: int) -> int:
-        """Calculate output length (8x downsample)."""
+        """Calculate output length."""
         return input_length // self.downsample_factor
