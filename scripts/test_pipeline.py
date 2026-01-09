@@ -178,7 +178,7 @@ def test_preprocessing(config):
 
     try:
         preprocessor = EMGPreprocessor(
-            sample_rate=config['data']['emg_sample_rate'],
+            sample_rate=config['data']['sample_rate'],
             target_rate=config['data']['target_sample_rate'],
             notch_freq=config['data']['notch_freq'],
             bandpass_low=config['data']['bandpass_low'],
@@ -189,14 +189,17 @@ def test_preprocessing(config):
 
         # Test with synthetic EMG
         raw_emg = np.random.randn(1000, 8).astype(np.float32)
-        processed = preprocessor.process(raw_emg, session_id='5-4')
+
+        # Compute session stats first
+        stats = preprocessor.compute_session_stats([raw_emg], '5-4')
+        processed = preprocessor.process_for_model(raw_emg, stats)
 
         print(f"  ✓ Input shape: {raw_emg.shape}")
         print(f"  ✓ Output shape: {processed.shape}")
         print(f"  ✓ Output dtype: {processed.dtype}")
 
         # Verify shape makes sense
-        expected_frames = (1000 * config['data']['target_sample_rate'] // config['data']['emg_sample_rate']) // 4
+        expected_frames = (1000 * config['data']['target_sample_rate'] // config['data']['sample_rate']) // 4
         print(f"  ✓ Expected ~{expected_frames} frames (after downsampling)")
 
         return True
