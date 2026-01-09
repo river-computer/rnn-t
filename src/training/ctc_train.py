@@ -210,6 +210,21 @@ class CTCTrainer:
             predictions = self._ctc_greedy_decode(log_probs, encoder_lengths)
             references = [t[:l].tolist() for t, l in zip(targets, target_lengths)]
 
+            # Debug: check for blank collapse and length issues
+            if num_batches == 1:  # Only print for first batch
+                for b in range(min(3, len(targets))):  # First 3 samples
+                    preds_raw = log_probs[b, :encoder_lengths[b]].argmax(dim=-1)
+                    blank_pct = (preds_raw == 0).float().mean().item()
+                    unique_tokens = preds_raw.unique().tolist()
+                    print(f"  Sample {b}: enc_len={encoder_lengths[b].item()}, "
+                          f"tgt_len={target_lengths[b].item()}, "
+                          f"blank%={blank_pct*100:.1f}%, "
+                          f"unique_tokens={unique_tokens[:10]}")
+                    if encoder_lengths[b] < target_lengths[b]:
+                        print(f"    WARNING: encoder_len < target_len! CTC will fail.")
+                    print(f"    Pred (decoded): {predictions[b][:20]}")
+                    print(f"    Ref:            {references[b][:20]}")
+
             self.metric_tracker.update(predictions, references)
 
         metrics = self.metric_tracker.compute()
