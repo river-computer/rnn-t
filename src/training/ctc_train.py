@@ -134,9 +134,10 @@ class CTCTrainer:
             # Move to device
             emg = batch['emg'].to(self.device)
             session_id = batch['session_id'].to(self.device)
-            targets = batch['frame_labels'].to(self.device)  # CTC uses frame labels
+            # CTC uses phoneme sequences as targets (not frame-aligned labels)
+            targets = batch['sequences'].to(self.device)
             emg_lengths = batch['emg_lengths'].to(self.device)
-            target_lengths = batch['target_lengths'].to(self.device)
+            target_lengths = batch['sequence_lengths'].to(self.device)
 
             self.optimizer.zero_grad()
 
@@ -191,9 +192,10 @@ class CTCTrainer:
         for batch in dataloader:
             emg = batch['emg'].to(self.device)
             session_id = batch['session_id'].to(self.device)
-            targets = batch['frame_labels'].to(self.device)
+            # CTC uses phoneme sequences as targets
+            targets = batch['sequences'].to(self.device)
             emg_lengths = batch['emg_lengths'].to(self.device)
-            target_lengths = batch['target_lengths'].to(self.device)
+            target_lengths = batch['sequence_lengths'].to(self.device)
 
             # Forward
             encoder_out, encoder_lengths = self.encoder(emg, session_id, emg_lengths)
