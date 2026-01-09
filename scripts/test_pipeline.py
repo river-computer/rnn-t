@@ -241,8 +241,7 @@ def build_transducer(config):
     )
 
     joiner = Joiner(
-        encoder_dim=joiner_config.get('input_dim', 128),
-        predictor_dim=joiner_config.get('input_dim', 128),
+        input_dim=joiner_config.get('input_dim', 128),
         vocab_size=joiner_config.get('vocab_size', 43),
     )
 
@@ -299,8 +298,7 @@ def test_model_forward(config):
 
         # Test joiner
         joiner = Joiner(
-            encoder_dim=config['model']['joiner'].get('input_dim', 128),
-            predictor_dim=config['model']['joiner'].get('input_dim', 128),
+            input_dim=config['model']['joiner'].get('input_dim', 128),
             vocab_size=config['model']['joiner'].get('vocab_size', 43),
         ).to(device)
 
